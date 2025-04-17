@@ -1,0 +1,2 @@
+# amazon-sakura-checker-enhancer
+Amazonの商品ページにサクラチェッカーの評価を表示させるスクリプト
