@@ -35,7 +35,7 @@
     if (document.getElementById('sakuraCheckerStyle')) return;
     const style = document.createElement('style');
     style.id = 'sakuraCheckerStyle';
-    style.textContent = 
+    style.textContent = `
       .sakuraCheckerEmbed {
         margin-top: 12px;
         padding: 16px;
@@ -63,7 +63,7 @@
         border: none;
         padding: 0;
       }
-    ;
+    `;
     document.head.appendChild(style);
   }
 
@@ -77,7 +77,7 @@
     const lvMatch = src.match(/lv(\d{2,3})\.png/)?.[1];
     const fromSrc = lvMatch === '100' ? '99' : lvMatch;
     const score = fromAlt || fromSibling || fromSrc;
-    return score ? ${score}% : '？';
+    return score ? `${score}%` : '？';
   }
 
   function getJudgmentColor(judgment) {
@@ -98,11 +98,11 @@
   }
 
   function fetchSakuraData(asin, attempt = 1) {
-    const storageKey = sakuraCache_${asin};
+    const storageKey = `sakuraCache_${asin}`;
     const stored = localStorage.getItem(storageKey);
     if (stored) return Promise.resolve(JSON.parse(stored));
 
-    const url = https://sakura-checker.jp/search/${asin};
+    const url = `https://sakura-checker.jp/search/${asin}`;
 
     return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
@@ -134,7 +134,7 @@
         },
         onerror: (err) => {
           if (attempt < 3) {
-            console.warn([サクラチェッカー] リトライ ${attempt} 回目);
+            console.warn(`[サクラチェッカー] リトライ ${attempt} 回目`);
             setTimeout(() => {
               fetchSakuraData(asin, attempt + 1).then(resolve).catch(reject);
             }, 1000 * attempt);
@@ -155,15 +155,15 @@
     wrapper.setAttribute('role', 'region');
     wrapper.setAttribute('aria-label', 'サクラチェッカー情報');
 
-    const chartRows = data.chartData.map(row => 
+    const chartRows = data.chartData.map(row => `
       <tr>
         <td>${row.category}</td>
         <td style="font-weight: bold; color: ${getScoreColor(row.score)};">${row.score}</td>
         <td style="color: ${getJudgmentColor(row.label)};">${row.label}</td>
       </tr>
-    ).join('');
+    `).join('');
 
-    wrapper.innerHTML = 
+    wrapper.innerHTML = `
       <div style="font-weight: 600; font-size: 15px; margin-bottom: 6px;">🔍 サクラチェッカー簡易分析</div>
       <div><strong>全体サクラ度：</strong><span style="font-weight: bold; color: ${parseInt(data.summaryScore) >= 60 ? '#e74c3c' : '#2ecc71'}; font-size: 16px;">${data.summaryScore}</span></div>
       <table>
@@ -179,12 +179,12 @@
       <div style="margin-top: 10px;">
         <a href="${data.link}" target="_blank" style="color: #0073e6; text-decoration: underline;">▶ サクラチェッカーで詳細を見る</a>
       </div>
-    ;
+    `;
     return wrapper;
   }
 
   function hasAlreadyInserted(asin) {
-    return document.querySelector(.sakuraCheckerEmbed[data-asin="${asin}"]);
+    return document.querySelector(`.sakuraCheckerEmbed[data-asin="${asin}"]`);
   }
 
   function getInsertTarget() {
@@ -220,7 +220,7 @@
     const card = createCard(data, asin);
     requestIdleCallback(() => {
       target.insertAdjacentElement('afterend', card);
-      console.log([サクラチェッカー] 表示完了: ${asin});
+      console.log(`[サクラチェッカー] 表示完了: ${asin}`);
     });
   }
 
