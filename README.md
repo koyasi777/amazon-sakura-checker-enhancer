@@ -40,6 +40,7 @@ Amazon.co.jp の商品ページに、**サクラチェッカーの信頼度ス�
 ## 🔗 関連サービス・リンク
 
 - [サクラチェッカー公式サイト](https://sakura-checker.jp/)
+- [Violentmonkey公式サイト](https://violentmonkey.github.io/)
 - [Tampermonkey公式サイト](https://www.tampermonkey.net/)
 - [このスクリプトのGitHubリポジトリ](https://github.com/koyasi777/amazon-sakura-checker-enhancer)
 
