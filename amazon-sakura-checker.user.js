@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         サクラチェッカーをAmazon内に直接表示 🔍️
 // @namespace    https://github.com/koyasi777/amazon-sakura-checker-enhancer
-// @version      6.2
+// @version      6.3
 // @description  Amazon.co.jpの商品ページにサクラチェッカーのスコアと判定を高速表示！CORS突破、軽量キャッシュ対応、レビューの信頼性を即チェック！
 // @author       koyasi777
 // @match        https://www.amazon.co.jp/*
@@ -99,11 +99,22 @@
 
   function fetchSakuraData(asin, attempt = 1) {
     const storageKey = `sakuraCache_${asin}`;
-    const stored = localStorage.getItem(storageKey);
-    if (stored) return Promise.resolve(JSON.parse(stored));
-
+    const cacheTTL = 1000 * 60 * 60 * 24; // 24時間
+  
+    const storedRaw = localStorage.getItem(storageKey);
+    if (storedRaw) {
+      try {
+        const stored = JSON.parse(storedRaw);
+        if (stored.timestamp && stored.data && (Date.now() - stored.timestamp < cacheTTL)) {
+          return Promise.resolve(stored.data);
+        }
+      } catch (e) {
+        console.warn('[サクラチェッカー] キャッシュ破損または形式不正、無視します');
+      }
+    }
+  
     const url = `https://sakura-checker.jp/search/${asin}`;
-
+  
     return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
         method: 'GET',
@@ -112,20 +123,23 @@
           try {
             const html = response.responseText;
             const doc = new DOMParser().parseFromString(html, 'text/html');
-
+  
             const summaryImg = doc.querySelector('.sakura-rating img') ||
                                doc.querySelector('.sakura-num img') ||
                                doc.querySelector('.item-rv-lv img');
             const summaryScore = extractSummaryScore(summaryImg);
-
+  
             const chartData = Array.from(doc.querySelectorAll('.chartBlock .column')).map(col => ({
               score: col.querySelector('.c100 span')?.textContent?.trim() || '？',
               label: col.querySelector('.label img')?.getAttribute('alt') || '？',
               category: col.querySelector('.caption a')?.textContent?.trim() || '？'
             }));
-
+  
             const result = { summaryScore, chartData, link: url };
-            localStorage.setItem(storageKey, JSON.stringify(result));
+            localStorage.setItem(storageKey, JSON.stringify({
+              timestamp: Date.now(),
+              data: result
+            }));
             resolve(result);
           } catch (e) {
             console.error('[サクラチェッカー] パースエラー:', e);
