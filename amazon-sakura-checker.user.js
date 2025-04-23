@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         サクラチェッカーをAmazon内に直接表示 🔍️
 // @namespace    https://github.com/koyasi777/amazon-sakura-checker-enhancer
-// @version      6.3
+// @version      6.4
 // @description  Amazon.co.jpの商品ページにサクラチェッカーのスコアと判定を高速表示！CORS突破、軽量キャッシュ対応、レビューの信頼性を即チェック！
 // @author       koyasi777
 // @match        https://www.amazon.co.jp/*
