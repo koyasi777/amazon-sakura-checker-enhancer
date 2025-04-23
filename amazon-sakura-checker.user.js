@@ -10,6 +10,7 @@
 // @license      MIT
 // @homepageURL  https://github.com/koyasi777/amazon-sakura-checker-enhancer
 // @supportURL   https://github.com/koyasi777/amazon-sakura-checker-enhancer/issues
+// @icon         https://sakura-checker.jp/images/apple-touch-icon-600.png
 // ==/UserScript==
 
 (function () {
