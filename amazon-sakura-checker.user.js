@@ -232,7 +232,7 @@
         <tbody>${chartRows}</tbody>
       </table>
       <div style="margin-top: 10px;">
-        <a href="${data.link}" target="_blank" style="color: #0073e6; text-decoration: underline;">▶ サクラチェッカーで詳細を見る</a>
+        <a href="${data.link}" target="_blank" style="color: #0073e6; text-decoration: underline;">▶ サクラチェッカーで最新情報を取得する</a>
       </div>
     `;
     return wrapper;
