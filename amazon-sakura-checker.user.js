@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         サクラチェッカーをAmazon内に直接表示 🔍️
 // @namespace    https://github.com/koyasi777/amazon-sakura-checker-enhancer
-// @version      7.4
+// @version      7.7
 // @description  Amazon.co.jpの商品ページにサクラチェッカーのスコアと判定を高速表示！
 // @author       koyasi777
 // @match        https://www.amazon.co.jp/*
@@ -60,9 +60,9 @@
       .sakuraCheckerEmbed thead {
         background: #efefef;
       }
-      .sakuraCheckerEmbed .a-box {
-        border: none;
-        padding: 0;
+      .sakuraCheckerEmbed .loading {
+        font-style: italic;
+        color: #888;
       }
     `;
     document.head.appendChild(style);
@@ -94,112 +94,62 @@
       const container = document.createElement('div');
       container.innerHTML = decodedHTML;
       return container.querySelector('.c100')?.parentElement || null;
-    } catch (e) {
-      console.warn('[サクラチェッカー] 埋め込みデコード失敗:', e);
+    } catch (_) {
       return null;
     }
   }
 
   function extractTotalScoreFromLv(doc) {
-      const img = doc.querySelector('.image.sakura-rating img[src*="lv"]');
-      const m   = img?.src.match(/lv(\d{2,3})\.png/);
-      if (!m) return null;
-      const n   = m[1] === '100' ? '99' : String(parseInt(m[1], 10));
-      return `${n}%`;
+    const img = doc.querySelector('.image.sakura-rating img[src*="lv"]');
+    const m = img?.src.match(/lv(\d{2,3})\.png/);
+    if (!m) return null;
+    const n = m[1] === '100' ? '99' : String(parseInt(m[1], 10));
+    return `${n}%`;
   }
 
-  /**
-   * doc 内の <script> を探し、Base64 部分を atob→decodeURIComponent して
-   * その中の <img src="…lvXX.png"> から XX を取り出す
-   */
   function decodeSummaryScoreFromScript(doc) {
-    // sakuraBlock 内の <script> すべてを調べる
     const scripts = Array.from(doc.querySelectorAll('.sakuraBlock script'));
     for (const script of scripts) {
       const m = script.textContent.match(/['"]([A-Za-z0-9+/=]+)['"]/);
       if (!m) continue;
       try {
-        // Base64 → 元 HTML
         const decoded = decodeURIComponent(atob(m[1]));
-        // 仮要素でパース
         const tmp = document.createElement('div');
         tmp.innerHTML = decoded;
-        // <img src="…lv80.png"> を探す
         const img = tmp.querySelector('.image.sakura-rating img[src*="lv"]');
         const mm = img?.getAttribute('src')?.match(/lv(\d{1,3})\.png/);
         if (mm) {
           const n = mm[1] === '100' ? 99 : parseInt(mm[1], 10);
           return `${n}%`;
         }
-      } catch (e) {
-        console.warn('[サクラチェッカー] summary decode failed', e);
-      }
+      } catch (_) {}
     }
     return null;
   }
 
+  function extractAnalysisDate(doc) {
+    const p = doc.querySelector('.has-text-centered p');
+    if (!p) return null;
+    const m = p.textContent.match(/この製品情報は(\d{4}年\d+月\d+日)/);
+    return m ? m[1] : null;
+  }
 
-  function fetchSakuraData(asin, attempt = 1) {
-    const url = `https://sakura-checker.jp/search/${asin}`;
+  function createLoadingCard(asin, message) {
+    injectStyles();
+    const div = document.createElement('div');
+    div.className = 'sakuraCheckerEmbed a-box a-spacing-base loading';
+    div.setAttribute('data-asin', asin);
+    div.innerHTML = `<div class="loading">🔄 ${message}</div>`;
+    return div;
+  }
 
-    return new Promise((resolve, reject) => {
-      GM_xmlhttpRequest({
-        method: 'GET',
-        url,
-        onload: (response) => {
-          try {
-            const html = response.responseText;
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-            // ① 通常のテキスト要素からパーセントを取ろうとする
-            let summaryScore = doc.querySelector('.item-rating span')
-                                 ?.textContent.match(/(\d{1,3})%/)?.[1];
-            // ② 取れなければ、静的 HTML かスクリプト埋め込みをデコードして lvXX.png を探す
-            if (!summaryScore) {
-              summaryScore = extractTotalScoreFromLv(doc)        // まず既存の静的要素を探す
-                          || decodeSummaryScoreFromScript(doc);  // なければスクリプトを decode
-            }
-            if (!summaryScore) summaryScore = '？';
-
-            const chartScripts = doc.querySelectorAll('.chartBlock script');
-            const chartData = Array.from(chartScripts).map(script => {
-              const container = decodeEmbeddedScript(script.textContent);
-              const circle = script.parentElement;
-              if (!container) return null;
-
-              const score = container.querySelector('span')?.textContent?.trim() || '？';
-              const label = container.querySelector('.label img')?.getAttribute('alt') || '？';
-              const category =
-                   circle.querySelector('.caption a')?.textContent?.trim() ||
-                   container.querySelector('.caption a')?.textContent?.trim() ||
-                   '？';
-
-              return { score, label, category };
-            }).filter(Boolean);
-
-            const result = {
-              summaryScore,
-              chartData,
-              link: url
-            };
-            resolve(result);
-          } catch (e) {
-            console.error('[サクラチェッカー] パースエラー:', e);
-            reject(e);
-          }
-        },
-        onerror: (err) => {
-          if (attempt < 3) {
-            console.warn(`[サクラチェッカー] リトライ ${attempt} 回目`);
-            setTimeout(() => {
-              fetchSakuraData(asin, attempt + 1).then(resolve).catch(reject);
-            }, 1000 * attempt);
-          } else {
-            console.error('[サクラチェッカー] CORS取得失敗:', err);
-            reject(err);
-          }
-        }
-      });
-    });
+  function createErrorCard(asin, message) {
+    injectStyles();
+    const div = document.createElement('div');
+    div.className = 'sakuraCheckerEmbed a-box a-spacing-base';
+    div.setAttribute('data-asin', asin);
+    div.innerHTML = `<div style="color:red;">❌ ${message}</div>`;
+    return div;
   }
 
   function createCard(data, asin) {
@@ -207,8 +157,6 @@
     const wrapper = document.createElement('div');
     wrapper.className = 'sakuraCheckerEmbed a-box a-spacing-base';
     wrapper.setAttribute('data-asin', asin);
-    wrapper.setAttribute('role', 'region');
-    wrapper.setAttribute('aria-label', 'サクラチェッカー情報');
 
     const chartRows = data.chartData.map(row => `
       <tr>
@@ -217,6 +165,13 @@
         <td style="color: ${getJudgmentColor(row.label)};">${row.label}</td>
       </tr>
     `).join('');
+
+    const footer = `
+      <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+        <a href="${data.link}" target="_blank" style="color: #0073e6; text-decoration: underline;">▶ サクラチェッカーで詳細を見る</a>
+        ${data.analysisDate ? `<div style="color: #666; margin-right: 3px;">（${data.analysisDate} 時点の情報）</div>` : ''}
+      </div>
+    `;
 
     wrapper.innerHTML = `
       <div style="font-weight: 600; font-size: 15px; margin-bottom: 6px;">🔍 サクラチェッカー簡易分析</div>
@@ -231,11 +186,48 @@
         </thead>
         <tbody>${chartRows}</tbody>
       </table>
-      <div style="margin-top: 10px;">
-        <a href="${data.link}" target="_blank" style="color: #0073e6; text-decoration: underline;">▶ サクラチェッカーで最新情報を取得</a>
-      </div>
+      ${footer}
     `;
     return wrapper;
+  }
+
+  async function fetchSakuraData(asin, container) {
+    GM_xmlhttpRequest({
+      method: 'GET',
+      url: `https://sakura-checker.jp/search/${asin}`,
+      onload: (res) => {
+        try {
+          const doc = new DOMParser().parseFromString(res.responseText, 'text/html');
+
+          let summaryScore = doc.querySelector('.item-rating span')?.textContent.match(/(\d{1,3})%/)?.[1];
+          if (!summaryScore) {
+            summaryScore = extractTotalScoreFromLv(doc) || decodeSummaryScoreFromScript(doc) || '？';
+          }
+
+          const chartData = Array.from(doc.querySelectorAll('.chartBlock script')).map(script => {
+            const container = decodeEmbeddedScript(script.textContent);
+            const circle = script.parentElement;
+            if (!container) return null;
+            return {
+              score: container.querySelector('span')?.textContent?.trim() || '？',
+              label: container.querySelector('.label img')?.getAttribute('alt') || '？',
+              category: circle.querySelector('.caption a')?.textContent?.trim() || '？'
+            };
+          }).filter(Boolean);
+
+          const analysisDate = extractAnalysisDate(doc);
+
+          const data = { summaryScore, chartData, analysisDate, link: `https://sakura-checker.jp/search/${asin}` };
+          container.replaceWith(createCard(data, asin));
+        } catch (e) {
+          console.error('[fetchSakuraData] パース失敗:', e);
+          container.replaceWith(createErrorCard(asin, '情報の解析に失敗しました'));
+        }
+      },
+      onerror: () => {
+        container.replaceWith(createErrorCard(asin, '情報の取得に失敗しました'));
+      }
+    });
   }
 
   function hasAlreadyInserted(asin) {
@@ -257,26 +249,13 @@
     if (!target) {
       if (attempt < MAX_RETRIES) {
         setTimeout(() => tryInsert(asin, attempt + 1), CHECK_INTERVAL);
-      } else {
-        console.warn('[サクラチェッカー] 挿入位置が見つかりません');
       }
       return;
     }
 
-    const data = await fetchSakuraData(asin);
-    if (!data) {
-      const err = document.createElement('div');
-      err.textContent = '⚠ サクラチェッカー情報を取得できませんでした';
-      err.style.color = 'red';
-      target.insertAdjacentElement('afterend', err);
-      return;
-    }
-
-    const card = createCard(data, asin);
-    requestIdleCallback(() => {
-      target.insertAdjacentElement('afterend', card);
-      console.log(`[サクラチェッカー] 表示完了: ${asin}`);
-    });
+    const loading = createLoadingCard(asin, 'サクラチェッカー情報を取得中...');
+    target.insertAdjacentElement('afterend', loading);
+    await fetchSakuraData(asin, loading);
   }
 
   function onPageChangeDebounced() {
